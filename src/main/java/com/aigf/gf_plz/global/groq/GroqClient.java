@@ -29,5 +29,17 @@ public interface GroqClient {
      * @throws GroqApiException Groq API 호출 실패 시
      */
     String generateReply(String mode, String userText, List<GroqMessage> history);
+
+    /**
+     * Groq API를 호출하여 캐릭터 정보를 기반으로 한 답변을 생성합니다.
+     *
+     * @param mode "chat" 또는 "call" 모드
+     * @param userText 사용자의 최종 입력 텍스트
+     * @param history 이전 대화 메시지 리스트
+     * @param systemPrompt 캐릭터별 시스템 프롬프트
+     * @return Groq가 생성한 답변 텍스트
+     * @throws GroqApiException Groq API 호출 실패 시
+     */
+    String generateReply(String mode, String userText, List<GroqMessage> history, String systemPrompt);
 }
 

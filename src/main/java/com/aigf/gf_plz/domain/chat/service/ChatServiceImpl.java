@@ -71,10 +71,15 @@ public class ChatServiceImpl implements ChatService {
         session.updateLastMessageAt(LocalDateTime.now());
         sessionRepository.save(session);
 
-        // 4. Groq API 호출
-        String reply = groqClient.generateReply("chat", request.content(), history);
+        // 4. Character 조회 및 프롬프트 생성
+        Character character = characterRepository.findById(request.characterId())
+                .orElseThrow(() -> new CharacterNotFoundException(request.characterId()));
+        String systemPrompt = character.generateFullSystemPrompt();
 
-        // 5. AI 응답 저장
+        // 5. Groq API 호출
+        String reply = groqClient.generateReply("chat", request.content(), history, systemPrompt);
+
+        // 6. AI 응답 저장
         Message assistantMessage = Message.builder()
                 .session(session)
                 .senderRole(SenderRole.ASSISTANT)
@@ -85,7 +90,7 @@ public class ChatServiceImpl implements ChatService {
         session.updateLastMessageAt(LocalDateTime.now());
         sessionRepository.save(session);
 
-        // 6. 응답 반환
+        // 7. 응답 반환
         return new ChatResponseDto(session.getSessionId(), reply);
     }
 

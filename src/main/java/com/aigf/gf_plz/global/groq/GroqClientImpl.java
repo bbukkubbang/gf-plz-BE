@@ -45,6 +45,11 @@ public class GroqClientImpl implements GroqClient {
 
     @Override
     public String generateReply(String mode, String userText, List<GroqMessage> history) {
+        return generateReply(mode, userText, history, BASE_SYSTEM_PROMPT);
+    }
+
+    @Override
+    public String generateReply(String mode, String userText, List<GroqMessage> history, String systemPrompt) {
         if (userText == null || userText.isBlank()) {
             throw new GroqApiException("사용자 입력 텍스트가 비어있습니다.");
         }
@@ -52,7 +57,7 @@ public class GroqClientImpl implements GroqClient {
         String modePrompt = "mode: " + mode;
 
         List<GroqMessage> messages = new java.util.ArrayList<>();
-        messages.add(new GroqMessage("system", BASE_SYSTEM_PROMPT));
+        messages.add(new GroqMessage("system", systemPrompt));
         messages.add(new GroqMessage("system", modePrompt));
         if (history != null && !history.isEmpty()) {
             messages.addAll(history);
