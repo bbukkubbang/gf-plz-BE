@@ -14,8 +14,11 @@ import java.util.Map;
 /**
  * OpenAI TTS API 클라이언트 구현체
  * Groq는 OpenAI 호환 API를 제공하므로 TTS도 사용 가능합니다.
+ * 
+ * @deprecated Google Cloud TTS로 대체되었습니다. GoogleCloudTtsClient를 사용하세요.
  */
 @Service
+@Deprecated
 public class OpenAITtsClient implements TtsClient {
 
     private static final String TTS_ENDPOINT = "/audio/speech";
@@ -38,8 +41,8 @@ public class OpenAITtsClient implements TtsClient {
             throw new TtsException("변환할 텍스트가 비어있습니다.");
         }
 
-        // OpenAI TTS 모델 및 음성 선택
-        String model = "tts-1";
+        // Groq TTS 모델 및 음성 선택
+        String model = "playai-tts";
         String voice = mapVoiceType(voiceType);
 
         Map<String, Object> requestBody = new HashMap<>();
@@ -76,16 +79,18 @@ public class OpenAITtsClient implements TtsClient {
     }
 
     /**
-     * 캐릭터의 VoiceType을 OpenAI TTS voice로 매핑합니다.
-     * OpenAI TTS voice: alloy, echo, fable, onyx, nova, shimmer
+     * 캐릭터의 VoiceType을 Groq TTS voice로 매핑합니다.
+     * Groq playai-tts voice: Celeste-PlayAI, Cheyenne-PlayAI, Deedee-PlayAI, 
+     * Gail-PlayAI, Indigo-PlayAI, Quinn-PlayAI 등 (여성 목소리)
      */
     private String mapVoiceType(String voiceType) {
-        // 기본값은 "nova" (여성 목소리)
+        // Groq TTS voice 옵션으로 매핑
+        // 기본값은 "Celeste-PlayAI" (여성 목소리)
         return switch (voiceType != null ? voiceType.toUpperCase() : "") {
-            case "TYPE1" -> "nova";
-            case "TYPE2" -> "shimmer";
-            case "TYPE3" -> "echo";
-            default -> "nova";
+            case "TYPE1" -> "Celeste-PlayAI";  // 부드러운 여성 목소리
+            case "TYPE2" -> "Cheyenne-PlayAI";  // 밝은 여성 목소리
+            case "TYPE3" -> "Quinn-PlayAI";      // 차분한 여성 목소리
+            default -> "Celeste-PlayAI";
         };
     }
 }

@@ -37,6 +37,8 @@ dependencies {
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
     implementation 'me.paulschwarz:spring-dotenv:4.0.0'
+	// Google Cloud Text-to-Speech
+	implementation 'com.google.cloud:google-cloud-texttospeech:2.40.0'
 }
 
 tasks.named('test') {

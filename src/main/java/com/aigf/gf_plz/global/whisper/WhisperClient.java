@@ -19,3 +19,4 @@ public interface WhisperClient {
     String transcribe(MultipartFile audioFile);
 }
 
+

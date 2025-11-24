@@ -17,3 +17,4 @@ public interface MessageService {
     List<MessageResponseDto> getMessagesBySessionId(Long sessionId);
 }
 
+
