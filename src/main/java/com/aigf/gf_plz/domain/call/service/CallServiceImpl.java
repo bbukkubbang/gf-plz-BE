@@ -3,6 +3,8 @@ package com.aigf.gf_plz.domain.call.service;
 import com.aigf.gf_plz.domain.character.entity.Character;
 import com.aigf.gf_plz.domain.character.exception.CharacterNotFoundException;
 import com.aigf.gf_plz.domain.character.repository.CharacterRepository;
+import com.aigf.gf_plz.domain.call.dto.CallAudioRequestDto;
+import com.aigf.gf_plz.domain.call.dto.CallAudioResponseDto;
 import com.aigf.gf_plz.domain.call.dto.CallTextRequestDto;
 import com.aigf.gf_plz.domain.call.dto.CallTextResponseDto;
 import com.aigf.gf_plz.domain.message.entity.Message;
@@ -14,7 +16,10 @@ import com.aigf.gf_plz.domain.session.entity.SessionType;
 import com.aigf.gf_plz.domain.session.repository.SessionRepository;
 import com.aigf.gf_plz.global.groq.GroqClient;
 import com.aigf.gf_plz.global.groq.GroqMessage;
+import com.aigf.gf_plz.global.tts.TtsClient;
+import com.aigf.gf_plz.global.whisper.WhisperClient;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
@@ -32,17 +37,23 @@ public class CallServiceImpl implements CallService {
     private final SessionRepository sessionRepository;
     private final MessageRepository messageRepository;
     private final CharacterRepository characterRepository;
+    private final WhisperClient whisperClient;
+    private final TtsClient ttsClient;
 
     public CallServiceImpl(
             GroqClient groqClient,
             SessionRepository sessionRepository,
             MessageRepository messageRepository,
-            CharacterRepository characterRepository
+            CharacterRepository characterRepository,
+            WhisperClient whisperClient,
+            TtsClient ttsClient
     ) {
         this.groqClient = groqClient;
         this.sessionRepository = sessionRepository;
         this.messageRepository = messageRepository;
         this.characterRepository = characterRepository;
+        this.whisperClient = whisperClient;
+        this.ttsClient = ttsClient;
     }
 
     @Override
@@ -95,6 +106,64 @@ public class CallServiceImpl implements CallService {
 
         // 7. 응답 반환
         return new CallTextResponseDto(session.getSessionId(), reply);
+    }
+
+    @Override
+    @Transactional
+    public CallAudioResponseDto replyToAudio(MultipartFile audioFile, CallAudioRequestDto request) {
+        // 1. Whisper로 음성 파일을 텍스트로 변환
+        String transcript = whisperClient.transcribe(audioFile);
+
+        // 2. 세션 조회/생성
+        Session session = findOrCreateSession(
+                request.sessionId(),
+                request.characterId(),
+                SessionType.CALL
+        );
+
+        // 3. 히스토리 조회 및 변환 (최근 30개로 제한)
+        List<Message> allMessages = messageRepository
+                .findBySessionIdOrderByCreatedAtDesc(session.getSessionId());
+        List<Message> messages = allMessages.stream()
+                .limit(30)
+                .collect(Collectors.toList());
+        List<GroqMessage> history = convertToGroqMessages(messages);
+
+        // 4. 사용자 메시지 저장 (TRANSCRIPT 타입)
+        Message userMessage = Message.builder()
+                .session(session)
+                .senderRole(SenderRole.USER)
+                .messageType(MessageType.TRANSCRIPT)
+                .textContent(transcript)
+                .build();
+        messageRepository.save(userMessage);
+        session.updateLastMessageAt(LocalDateTime.now());
+        sessionRepository.save(session);
+
+        // 5. Character 조회 및 프롬프트 생성
+        Character character = characterRepository.findById(request.characterId())
+                .orElseThrow(() -> new CharacterNotFoundException(request.characterId()));
+        String systemPrompt = character.generateFullSystemPrompt();
+
+        // 6. Groq API 호출하여 답변 생성
+        String reply = groqClient.generateReply("call", transcript, history, systemPrompt);
+
+        // 7. AI 응답 저장 (TRANSCRIPT 타입)
+        Message assistantMessage = Message.builder()
+                .session(session)
+                .senderRole(SenderRole.ASSISTANT)
+                .messageType(MessageType.TRANSCRIPT)
+                .textContent(reply)
+                .build();
+        messageRepository.save(assistantMessage);
+        session.updateLastMessageAt(LocalDateTime.now());
+        sessionRepository.save(session);
+
+        // 8. TTS로 답변을 음성 파일로 변환
+        byte[] audioData = ttsClient.synthesize(reply, character.getVoiceType().name());
+
+        // 9. 응답 반환
+        return new CallAudioResponseDto(session.getSessionId(), audioData, transcript);
     }
 
     /**
