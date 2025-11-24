@@ -6,6 +6,7 @@ package com.aigf.gf_plz.domain.call.dto;
  * 이 텍스트는 TTS로 변환되어 음성으로 재생됩니다.
  */
 public record CallTextResponseDto(
+        Long sessionId,
         String reply
 ) {}
 
