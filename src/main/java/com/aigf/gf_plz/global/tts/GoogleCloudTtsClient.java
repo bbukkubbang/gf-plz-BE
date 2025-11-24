@@ -80,20 +80,35 @@ public class GoogleCloudTtsClient implements TtsClient {
             initializeClient();
 
             // 음성 설정
+            String voiceName = mapVoiceType(voiceType);
             VoiceSelectionParams voice = VoiceSelectionParams.newBuilder()
                     .setLanguageCode("ko-KR")  // 한국어
-                    .setName(mapVoiceType(voiceType))  // 목소리 선택
-                    .setSsmlGender(SsmlVoiceGender.FEMALE)  // 여성 목소리
+                    .setName(voiceName)  // 목소리 선택 (voice name에 성별이 포함됨)
                     .build();
 
-            // 오디오 설정
+            // 오디오 설정 (더 자연스러운 음성을 위해 파라미터 조절)
+            // speakingRate를 약간 낮추면(0.9~0.95) 더 자연스럽고 감정이 있는 목소리가 됩니다
+            // voiceType에 따라 pitch를 조절 (여성: 높게, 남성: 낮게)
+            boolean isMaleVoice = voiceType != null && 
+                    (voiceType.toUpperCase().equals("TYPE4") || 
+                     voiceType.toUpperCase().equals("TYPE5") || 
+                     voiceType.toUpperCase().equals("TYPE6"));
+            double pitch = isMaleVoice ? -2.0 : 2.0;  // 남성: 낮게, 여성: 높게
+            
             AudioConfig audioConfig = AudioConfig.newBuilder()
                     .setAudioEncoding(AudioEncoding.MP3)  // MP3 형식
+                    .setSpeakingRate(0.95)  // 말하기 속도 (0.9~0.95가 더 자연스러움)
+                    .setPitch(pitch)  // 음높이 조절 (여성: +2.0, 남성: -2.0)
+                    .setVolumeGainDb(0.0)  // 볼륨 조절 (-96.0 ~ 16.0, 0.0이 정상)
                     .build();
 
+            // SSML을 사용하여 더 자연스러운 음성 생성
+            // 감정 표현을 위해 텍스트를 SSML로 감싸기
+            String ssmlText = wrapWithSsml(text);
+            
             // TTS 요청 생성
             SynthesizeSpeechRequest request = SynthesizeSpeechRequest.newBuilder()
-                    .setInput(SynthesisInput.newBuilder().setText(text).build())
+                    .setInput(SynthesisInput.newBuilder().setSsml(ssmlText).build())
                     .setVoice(voice)
                     .setAudioConfig(audioConfig)
                     .build();
@@ -115,24 +130,50 @@ public class GoogleCloudTtsClient implements TtsClient {
 
     /**
      * 캐릭터의 VoiceType을 Google Cloud TTS voice로 매핑합니다.
-     * Google Cloud TTS 한국어 여성 목소리:
-     * - ko-KR-Standard-A (여성, 표준)
-     * - ko-KR-Standard-B (남성, 표준)
-     * - ko-KR-Standard-C (여성, 표준)
-     * - ko-KR-Standard-D (남성, 표준)
-     * - ko-KR-Wavenet-A (여성, 고품질)
-     * - ko-KR-Wavenet-B (남성, 고품질)
-     * - ko-KR-Wavenet-C (여성, 고품질)
-     * - ko-KR-Wavenet-D (남성, 고품질)
+     * 무료 모델만 사용합니다:
+     * 
+     * 여성 목소리:
+     * - ko-KR-Standard-A (여성, 표준, 무료)
+     * - ko-KR-Standard-C (여성, 표준, 무료)
+     * - ko-KR-Wavenet-A (여성, 고품질, 무료 티어 제공)
+     * - ko-KR-Wavenet-C (여성, 고품질, 무료 티어 제공)
+     * 
+     * 남성 목소리:
+     * - ko-KR-Standard-B (남성, 표준, 무료)
+     * - ko-KR-Standard-D (남성, 표준, 무료)
+     * - ko-KR-Wavenet-B (남성, 고품질, 무료 티어 제공)
+     * - ko-KR-Wavenet-D (남성, 고품질, 무료 티어 제공)
+     * 
+     * AudioConfig의 파라미터(speakingRate, pitch 등)를 조절하여 더 자연스럽게 만들 수 있습니다.
      */
     private String mapVoiceType(String voiceType) {
-        // 기본값은 "ko-KR-Wavenet-A" (고품질 여성 목소리)
+        // 기본값은 "ko-KR-Wavenet-A" (고품질 여성 목소리, 무료 티어 제공)
         return switch (voiceType != null ? voiceType.toUpperCase() : "") {
-            case "TYPE1" -> "ko-KR-Wavenet-A";  // 부드러운 여성 목소리 (고품질)
-            case "TYPE2" -> "ko-KR-Wavenet-C";  // 밝은 여성 목소리 (고품질)
-            case "TYPE3" -> "ko-KR-Standard-A"; // 표준 여성 목소리
+            // 여성 목소리
+            case "TYPE1" -> "ko-KR-Wavenet-A";  // 부드러운 여성 목소리 (고품질, 무료 티어)
+            case "TYPE2" -> "ko-KR-Wavenet-C";  // 밝은 여성 목소리 (고품질, 무료 티어)
+            case "TYPE3" -> "ko-KR-Standard-A"; // 표준 여성 목소리 (무료)
+            // 남성 목소리
+            case "TYPE4" -> "ko-KR-Wavenet-B";  // 부드러운 남성 목소리 (고품질, 무료 티어)
+            case "TYPE5" -> "ko-KR-Wavenet-D";  // 밝은 남성 목소리 (고품질, 무료 티어)
+            case "TYPE6" -> "ko-KR-Standard-B"; // 표준 남성 목소리 (무료)
             default -> "ko-KR-Wavenet-A";
         };
+    }
+
+    /**
+     * 텍스트를 SSML로 감싸서 더 자연스러운 음성을 생성합니다.
+     * SSML을 사용하면 감정 표현, 강조, 휴지 등을 추가할 수 있습니다.
+     */
+    private String wrapWithSsml(String text) {
+        // 기본 SSML 래퍼
+        // AudioConfig에서 이미 speakingRate와 pitch를 조절하고 있으므로
+        // 여기서는 기본 래퍼만 사용
+        // 필요시 나중에 더 복잡한 SSML 처리 추가 가능
+        return String.format(
+            "<speak>%s</speak>",
+            text
+        );
     }
 }
 
