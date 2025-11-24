@@ -21,7 +21,7 @@ public interface MessageRepository extends JpaRepository<Message, Long> {
     /**
      * 세션 ID로 최근 30개 메시지를 역순으로 조회합니다 (Groq 전달용).
      */
-    @Query("SELECT m FROM Message m WHERE m.session.sessionId = :sessionId ORDER BY m.createdAt DESC LIMIT 30")
+    @Query(value = "SELECT * FROM Message WHERE 세션ID = :sessionId ORDER BY 생성시간 DESC LIMIT 30", nativeQuery = true)
     List<Message> findTop30BySessionIdOrderByCreatedAtDesc(@Param("sessionId") Long sessionId);
 }
 
