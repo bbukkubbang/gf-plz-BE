@@ -49,5 +49,5 @@ groq:
 google:
   cloud:
     tts:
-      credentials-path: ${GOOGLE_APPLICATION_CREDENTIALS:}  # 서비스 계정 키 JSON 파일 경로
+      credentials-path: ${GOOGLE_APPLICATION_CREDENTIALS:./google-credentials.json}  # 서비스 계정 키 JSON 파일 경로
       project-id: ${GOOGLE_CLOUD_PROJECT_ID:}  # Google Cloud 프로젝트 ID

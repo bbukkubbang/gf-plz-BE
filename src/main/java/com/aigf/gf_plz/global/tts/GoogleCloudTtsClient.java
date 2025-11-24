@@ -15,7 +15,10 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Service;
 
+import java.io.FileInputStream;
 import java.io.IOException;
+import com.google.auth.oauth2.GoogleCredentials;
+import com.google.api.gax.core.FixedCredentialsProvider;
 
 /**
  * Google Cloud TTS 클라이언트 구현체
@@ -41,14 +44,28 @@ public class GoogleCloudTtsClient implements TtsClient {
             try {
                 TextToSpeechSettings.Builder settingsBuilder = TextToSpeechSettings.newBuilder();
                 
-                // 서비스 계정 키 파일이 지정된 경우
+                // 서비스 계정 키 파일이 지정된 경우 직접 credentials 로드
                 if (credentialsPath != null && !credentialsPath.isBlank()) {
-                    System.setProperty("GOOGLE_APPLICATION_CREDENTIALS", credentialsPath);
+                    try (FileInputStream credentialsStream = new FileInputStream(credentialsPath)) {
+                        GoogleCredentials credentials = GoogleCredentials.fromStream(credentialsStream);
+                        settingsBuilder.setCredentialsProvider(FixedCredentialsProvider.create(credentials));
+                    }
                 }
+                // credentialsPath가 없으면 환경 변수 GOOGLE_APPLICATION_CREDENTIALS 또는 기본 인증 사용
                 
                 textToSpeechClient = TextToSpeechClient.create(settingsBuilder.build());
             } catch (IOException e) {
-                throw new TtsException("Google Cloud TTS 클라이언트 초기화 실패: " + e.getMessage(), e);
+                String errorMsg = e.getMessage();
+                if (errorMsg != null && errorMsg.contains("credentials were not found")) {
+                    throw new TtsException(
+                        "Google Cloud TTS 인증 정보를 찾을 수 없습니다. " +
+                        "application.yml에 google.cloud.tts.credentials-path를 설정하거나 " +
+                        "환경 변수 GOOGLE_APPLICATION_CREDENTIALS를 설정해주세요. " +
+                        "자세한 내용: https://cloud.google.com/docs/authentication/external/set-up-adc",
+                        e
+                    );
+                }
+                throw new TtsException("Google Cloud TTS 클라이언트 초기화 실패: " + errorMsg, e);
             }
         }
     }
